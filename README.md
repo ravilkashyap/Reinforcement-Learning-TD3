@@ -1,109 +1,49 @@
 # Reinforcement-Learning-TD3-
 Implement TD3 algorithm to train a car to move across two destinations in a map
 
-### Params
-- state_dim - a crop of 100x100x3 of the mask where car is present. This will act as the visual input
-- action_dim - rotation angle for the car. Range [-5,5]
-- max_action - 5
+### State Dimensions
+----------------------
+![Resized image](images/img_resized.jpg)
+ - **Image** - A crop of 200x200 image of the mask where the car is present.This will act as the visual input to the actor and critic model. An arrow is superimposed on top of the crop and resized to 30x30 and then fed to the network.
+![The original crop](images/img.jpg)   
 
+- **Orientation** - Orientation is calculated based on the shift in the angle between the car and the goal. Both +ve orientation and -ve orientation is sent to the network for stability.
 
-### Actor model 
-```
-Actor(
-  (conv1): conv_block(
-    (convblock): Sequential(
-      (0): Conv2d(3, 12, kernel_size=(3, 3), stride=(1, 1))
-      (1): BatchNorm2d(12, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      (2): ReLU()
-      (3): Dropout(p=0.1)
-    )
-  )
-  (conv2): conv_block(
-    (convblock): Sequential(
-      (0): Conv2d(12, 24, kernel_size=(3, 3), stride=(1, 1))
-      (1): BatchNorm2d(24, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      (2): ReLU()
-      (3): Dropout(p=0.1)
-    )
-  )
-  (conv3): conv_block(
-    (convblock): Sequential(
-      (0): Conv2d(24, 32, kernel_size=(3, 3), stride=(1, 1))
-      (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      (2): ReLU()
-      (3): Dropout(p=0.1)
-    )
-  )
-  (maxpool_2): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
-  (reduce): Conv2d(32, 10, kernel_size=(1, 1), stride=(1, 1))
-  (gap): AdaptiveAvgPool2d(output_size=(1, 1))
-  (last): Conv2d(10, 1, kernel_size=(1, 1), stride=(1, 1))
-)
+- **Distance** - Distance from the car to the goal is calculated by Euclidian distance and is also passed as a state parameter.
 
-```
-### Critic model
-```
-Critic(
-  (conv1_1): conv_block(
-    (convblock): Sequential(
-      (0): Conv2d(3, 12, kernel_size=(3, 3), stride=(1, 1))
-      (1): BatchNorm2d(12, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      (2): ReLU()
-      (3): Dropout(p=0.1)
-    )
-  )
-  (conv2_1): conv_block(
-    (convblock): Sequential(
-      (0): Conv2d(12, 24, kernel_size=(3, 3), stride=(1, 1))
-      (1): BatchNorm2d(24, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      (2): ReLU()
-      (3): Dropout(p=0.1)
-    )
-  )
-  (conv3_1): conv_block(
-    (convblock): Sequential(
-      (0): Conv2d(24, 32, kernel_size=(3, 3), stride=(1, 1))
-      (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      (2): ReLU()
-      (3): Dropout(p=0.1)
-    )
-  )
-  (maxpool_1_1): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
-  (reduce_1_1): Conv2d(32, 10, kernel_size=(1, 1), stride=(1, 1))
-  (gap_1): AdaptiveAvgPool2d(output_size=(1, 1))
-  (last_1_1): Conv2d(10, 1, kernel_size=(1, 1), stride=(1, 1))
-  (last_1_2): Linear(in_features=2, out_features=10, bias=True)
-  (last_1_3): Linear(in_features=10, out_features=1, bias=True)
-  (conv1_2): conv_block(
-    (convblock): Sequential(
-      (0): Conv2d(3, 12, kernel_size=(3, 3), stride=(1, 1))
-      (1): BatchNorm2d(12, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      (2): ReLU()
-      (3): Dropout(p=0.1)
-    )
-  )
-  (conv2_2): conv_block(
-    (convblock): Sequential(
-      (0): Conv2d(12, 24, kernel_size=(3, 3), stride=(1, 1))
-      (1): BatchNorm2d(24, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      (2): ReLU()
-      (3): Dropout(p=0.1)
-    )
-  )
-  (conv3_2): conv_block(
-    (convblock): Sequential(
-      (0): Conv2d(24, 32, kernel_size=(3, 3), stride=(1, 1))
-      (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      (2): ReLU()
-      (3): Dropout(p=0.1)
-    )
-  )
-  (maxpool_2_1): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
-  (reduce_2_1): Conv2d(32, 10, kernel_size=(1, 1), stride=(1, 1))
-  (gap_2): AdaptiveAvgPool2d(output_size=(1, 1))
-  (last_2_1): Conv2d(10, 1, kernel_size=(1, 1), stride=(1, 1))
-  (last_2_2): Linear(in_features=2, out_features=10, bias=True)
-  (last_2_3): Linear(in_features=10, out_features=1, bias=True)
-)
+### Action Dimensions 
+-----------------------
+- **Rotation** - The actor model and actor target predicts a float value that represents the angle of rotation for the car. 
+The range of values for rotation are - `[-5,5]`
 
-```
+- **Velocity** - The x-axis component of the velocity is predicted by the model. Velocity along with rotation angle makes up the action parameters that help move the car forward. 
+The range of values for velocity are - `[0,3]`
+
+### Terminal Condition (done = True)
+-----------------------
+- **Positive Terminal** - When the car reaches the goal, positive terminal condition is met, `done = True` and `goal_reward = 500`
+- **Negative Terminal** - If the car hits the wall, `wall_reward = -100`
+- **Time Limit** - If the car takes more than `2000` steps to reach the goal (or) complete an episode, then `time_reward = -100`
+
+### Reward Function
+- **Distance reward** - We want to keep a continuous reward function to help the model give feedback at regular intervals as opposed to a sparse/binary reward.
+`distance_reward = 1 - (distance/const)**0.2` 
+const is kept as 1429 to bring the distance parameter to [0,1] range. This type of function ensures that large reward is given if car is near to goal and small values if the car is farther. This reward function will always give a positive reward ensuring that the policy model does not learn to maximize reward by hitting the wall as soon as possible instead of going towards the goal acumulating rewards overtime.
+![](images/reward.png)
+- **Velocity reward** - The range of value predicted for velocity is between 0 and 3, but we want the car to go slower when it is on sand which would result in decrease of overall reward and hence encouraging the agent to always be on the road. Velicity predicted is normalised to be in the range of [0,1] and is multiplied by a discounting factor (road factor) to alter the speed.
+- **Road factor** - We take the average of the pixel values (20,10) where the car is present at that particular state. If majority of the car portion is on the road, we get a value closer to 1, if the car is on sand, we get a value closer to 0. This will be used as a multiplying factor along with distance reward as well as velocity reward.
+- **Rotation reward** If the car starts to rotate at the same point, every time it rotates by 360 degrees, we penalise it. This is to discourage the agent to get stuck and rotate at the same point.
+ `rotation_reward = -0.1*(self.car.angle//360)`
+- **Living reward** - We want the car to go to the destination as quickly as posible. Also to encourage the agent to take the shorter route, we add a constant living penalty.
+`living_reward = -0.1`
+
+- The final reward function is a combination of all these rewards - 
+```reward = (distance_reward * road_factor) + (velocity * road_factor) + rotation_reward + living_reward + wall_reward + goal_reward + time_reward```
+
+#### Conclusion 
+Although I was able to get the car going in the right direction, keeping the car on track still seems to be a challenge. Maybe the reward function has too many parameters for it to be effective. I will continue to experiment with reward function to get it to drive on road.
+
+#### Limitations
+- Training on a CPU is really challenging, need to port this project to gym env and run it on colab
+- Tried a lot of things to keep the car on road,it still doesn't stick on road. Need to experiment more to get it working. Image size 30x30 may be too small to figure out where the car is, I used 30x30 and batch_size of 50 because of resource constraint.
+- Car still occasionally rotates (Ghoomar effect). My hunch is that reward function is causing it to do so, need to investigate.
