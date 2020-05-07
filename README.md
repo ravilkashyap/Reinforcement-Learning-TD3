@@ -25,14 +25,14 @@ The range of values for velocity are - `[0,3]`
 
 ### Terminal Condition (done = True)
 -----------------------
-- **Positive Terminal** - When the car reaches the goal, positive terminal condition is met, `done = True` and `goal_reward = 500`
+- **Positive Terminal** - When the car reaches the goal, positive terminal condition is met, `done = True` and `goal_reward = 500`. A large goal is necessary because if the goal reward is small, the car just keeps circling around the goal to accumulate more reward until time limit is reached.
 - **Negative Terminal** - If the car hits the wall, `wall_reward = -100`
 - **Time Limit** - If the car takes more than `2000` steps to reach the goal (or) complete an episode, then `time_reward = -100`
 
 ### Reward Function
 - **Distance reward** - We want to keep a continuous reward function to help the model give feedback at regular intervals as opposed to a sparse/binary reward.
 `distance_reward = 1 - (distance/const)**0.2` 
-const is kept as 1429 to bring the distance parameter to [0,1] range. This type of function ensures that large reward is given if car is near to goal and small values if the car is farther. This reward function will always give a positive reward ensuring that the policy model does not learn to maximize reward by hitting the wall as soon as possible instead of going towards the goal acumulating rewards overtime.
+const is kept as 1429 to bring the distance parameter to [0,1] range. This type of function ensures that large reward is given if car is near to goal and small values if the car is farther. This reward function will always give a positive reward ensuring that the policy model does not learn to maximize reward by hitting the wall as soon as possible instead of going towards the goal acumulating rewards overtime. The steep increase  for smaller values of distance is intentional, this makes sure that the car moves precisely towards the goal.
 ![](images/reward.png)
 - **Velocity reward** - The range of value predicted for velocity is between 0 and 3, but we want the car to go slower when it is on sand which would result in decrease of overall reward and hence encouraging the agent to always be on the road. Velicity predicted is normalised to be in the range of [0,1] and is multiplied by a discounting factor (road factor) to alter the speed.
 - **Road factor** - We take the average of the pixel values (20,10) where the car is present at that particular state. If majority of the car portion is on the road, we get a value closer to 1, if the car is on sand, we get a value closer to 0. This will be used as a multiplying factor along with distance reward as well as velocity reward.
