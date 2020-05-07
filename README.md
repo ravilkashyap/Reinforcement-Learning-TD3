@@ -1,10 +1,14 @@
 # Reinforcement-Learning-TD3-
-Implement TD3 algorithm to train a car to move across two destinations in a map
+Implement TD3 algorithm to train a car to move across two destinations on a map
+![](images/citymap.png)
+![](images/MASK1.png)
+![](images/car.png)
 
 ### State Dimensions
 ----------------------
-![Resized image](images/img_resized.jpg)
+
  - **Image** - A crop of 200x200 image of the mask where the car is present.This will act as the visual input to the actor and critic model. An arrow is superimposed on top of the crop and resized to 30x30 and then fed to the network.
+![Resized image](images/img_resized.jpg)
 ![The original crop](images/img.jpg)   
 
 - **Orientation** - Orientation is calculated based on the shift in the angle between the car and the goal. Both +ve orientation and -ve orientation is sent to the network for stability.
