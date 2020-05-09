@@ -15,23 +15,6 @@
             source: "./images/car.png"
         PopMatrix
 
-<Ball1>:
-    size: 20,20
-    canvas:
-        Color:
-            rgba: 0.48,0.97,0.74,1
-        Ellipse:
-            pos: self.pos
-            size: self.size
-<Ball2>:
-    size: 200,200
-    canvas:
-        Color:
-            rgba: 0.48,0.97,0.74,0
-        Ellipse:
-            pos: self.pos
-            size: self.size
-
 <Game>:
     car: game_car
     canvas:
@@ -46,8 +29,8 @@
             source: "./images/r.png" 
         Rectangle:
             pos: (345,300)
-            size: 20,24
-            source: "./images/b.png" 
+            size: 17,28
+            source: "./images/g.png" 
     Car:
         id: game_car
         center: self.parent.center

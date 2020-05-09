@@ -2,7 +2,7 @@
 
 # Importing the libraries
 import numpy as np
-from random import random, randint, uniform
+from random import random, randint, uniform, sample
 import matplotlib.pyplot as plt
 import time
 
@@ -39,7 +39,7 @@ Window.size = (1429, 660)
 # Initializing the map
 first_update = True
 
-img_size = 200
+img_size = 100
 resize_shape = (30, 30)
 
 state_dim = 3  # +1 image
@@ -60,9 +60,9 @@ goal_x = goal_x2
 goal_y = goal_y2
 
 seed = 0  # Random seed number
-start_timesteps = 5000  # Number of iterations/timesteps before which the model randomly chooses an action, and after which it starts to use the policy network
+start_timesteps = 10000  # Number of iterations/timesteps before which the model randomly chooses an action, and after which it starts to use the policy network
 eval_freq = 5e3  # How often the evaluation step is performed (after how many timesteps)
-max_timesteps = 1e5  # Total number of iterations/timesteps
+max_timesteps = 1000000  # Total number of iterations/timesteps
 save_models = True  # Boolean checker whether or not to save the pre-trained model
 expl_noise = 0.1  # Exploration noise - STD value of exploration Gaussian noise
 batch_size = 50  # Size of the batch
@@ -80,10 +80,10 @@ policy_freq = (
 total_timesteps = 0
 timesteps_since_eval = 0
 episode_num = 0
-done = True
+done = False
 episode_reward = 0
 episode_timesteps = 0
-max_episode_steps = 1000
+max_episode_steps = 2000
 dest = "R"
 road_factor = 0
 
@@ -91,24 +91,6 @@ road_factor = 0
 sand = PILImage.open("./images/mask.png").convert("RGB")
 orig_sand = PILImage.open("./images/MASK1.png").convert("RGB")
 arrow = PILImage.open("./images/arrow.png").convert("RGBA")
-
-
-
-def get_corner_rotated_coord(x, y, cx, cy, angle):
-"""Function to get the rotated rectangle co-ordinates"""
-    # translate
-    tempx = x - cx
-    tempy = y - cy
-
-    # rotate
-    rotx = tempx * math.cos(angle) - tempy * math.sin(angle)
-    roty = tempx * math.sin(angle) + tempy * math.cos(angle)
-
-    # translate back
-    x = rotx + cx
-    y = roty + cy
-
-    return int(x), int(y)
 
 
 def init():
@@ -126,7 +108,7 @@ def init():
 
 # Initializing the last distance
 last_distance = 0
-max_distance = 1429
+
 # Creating the car class
 
 
@@ -159,25 +141,16 @@ class Game(Widget):
         # self.car.velocity = Vector(6, 0)
 
     def random_action(self):
-        """
-        Take random action from a uniform distribution
-        """
         rotation = uniform(-max_action[0], max_action[0])
         velocity = uniform(0, max_action[1])
         return Action(*np.array([rotation, velocity]))
 
     def reset(self):
-        """
-        Reset car in a random location with random angle
-        """
-        self.car.x = abs(randint(0, 1400))
-        self.car.y = abs(randint(0, 600))
+        self.car.x = sample([abs(randint(20, 1400)), 1150, 250], 1)[0]
+        self.car.y = sample([abs(randint(20, 600)), 350, 290], 1)[0]
         self.car.angle = abs(randint(0, 360))
 
     def get_image(self):
-        """
-        Crop nxn image to feed our network and superimpose an arrow for direction information
-        """
         def get_center_coord(x, y, angle):
             # Center coord to superimpose car/arrow image to get exact overlap
             # x = x - (20 * math.cos(angle) + 10 * math.sin(angle))
@@ -195,6 +168,9 @@ class Game(Widget):
         # exit()
         orientation = Vector(*self.car.velocity).angle((xx, yy)) / 180.0
         rotation = self.car.angle
+        # print(
+        #     f"Angle and orientation - {self.car.angle, orientation, self.car.rotation}"
+        # )
 
         mask = orig_sand.copy()
         # mask = mask.resize((1429, 660))
@@ -206,49 +182,35 @@ class Game(Widget):
         cropped_mask = mask.crop(
             (x - img_size / 2, y - img_size / 2, x + img_size / 2, y + img_size / 2)
         )
-
-        #---------------------------------------------------------------------------
-        # Display cv2 window
         opencvImage = cv2.cvtColor(np.array(cropped_mask), cv2.COLOR_RGB2BGR)
         cv2.imshow("img", opencvImage)
         cv2.waitKey(1)
         # _ = cropped_mask.save("a.jpg")
         cropped_mask = cropped_mask.resize(resize_shape)
         # _ = cropped_mask.save("b.jpg")
-        #---------------------------------------------------------------------------
 
         distance = np.sqrt((self.car.x - goal_x) ** 2 + (self.car.y - goal_y) ** 2)
 
-        return np.array(cropped_mask).reshape(3, resize_shape[0], resize_shape[1]) / 255
+        return np.array(cropped_mask).reshape(3, resize_shape[0], resize_shape[1])
 
     def get_state(self):
-        """
-        Get state params for the (image, orientation, distance)
-        """
         xx = goal_x - self.car.x
         yy = goal_y - self.car.y
         orientation = Vector(*self.car.velocity).angle((xx, yy)) / 180.0
         distance = np.sqrt((self.car.x - goal_x) ** 2 + (self.car.y - goal_y) ** 2)
-        distance = distance / max_distance
+        distance = distance / 1429
         image = self.get_image()
         return State(*np.array([image, orientation, -orientation, distance]))
 
     def step(self, action):
-        """
-        Execute the action, i.e move the car forward with rotation and velcity parameters
-        """
         self.car.move(float(action[0]), float(action[1]))
         new_state = self.get_state()
         reward, done = self.get_reward()
         return new_state, reward, done
 
     def get_reward(self):
-        """
-        Calculate reward function
-        """
-
         global done, last_distance, goal_x, goal_y, dest, episode_timesteps, max_episode_steps, road_factor
-        living_penalty = -0.1
+        living_penalty = -0.15
         sand_reward = 0
         wall_reward = 0
         goal_reward = 0
@@ -257,11 +219,9 @@ class Game(Widget):
         time_reward = 0
         road_reward = 0
 
-        def calculate_road_density():
-            """
-            Calculate the density of black pixels that represent the road and return the same
-            """
+        distance = np.sqrt((self.car.x - goal_x) ** 2 + (self.car.y - goal_y) ** 2)
 
+        def calculate_road_density():
             # If near the boundary then return 1 (sand)
             if is_near_boundary():
                 return 1.0
@@ -271,12 +231,11 @@ class Game(Widget):
             sand_copy[sand_copy >= 128] = 1
             x = int(self.car.x)
             y = int(self.car.y)
-            return np.average(sand_copy[x - 10:x + 10, y - 5:y + 5])
-            
+            return np.average(sand_copy[x - 10 : x + 10, y - 5 : y + 5])
+
+        # Reward for going closer to boundary / sand
+
         def is_near_boundary():
-            """
-            Function to check if car is near the boundary
-            """
             if (
                 (self.car.x < 10)
                 or (self.car.y < 10)
@@ -287,44 +246,28 @@ class Game(Widget):
             else:
                 return False
 
-        #---------------------------------------------------------------------------
-        # calculate distance
-        #---------------------------------------------------------------------------
-        distance = np.sqrt((self.car.x - goal_x)** 2 + (self.car.y - goal_y)** 2)
-
-
-        #---------------------------------------------------------------------------
-        # Pixel density of road (multiplying factor)
-        #---------------------------------------------------------------------------
+        # Road_factor for staying on road
         road_factor = 1 - calculate_road_density()
-        
 
-        #---------------------------------------------------------------------------
-        # TIME LIMIT - If we exceed number of timesteps, then we reset and set done = True 
-        #---------------------------------------------------------------------------
+        if self.car.x < 10:
+            self.car.x = 10
+            wall_reward += -1
+        if self.car.y < 10:
+            self.car.y = 10
+            wall_reward += -1
+        if self.car.x > 1420:
+            self.car.x = 1420
+            wall_reward += -1
+        if self.car.y > 650:
+            self.car.y = 650
+        wall_reward += -1
+
+        # We check if the episode is done
         if episode_timesteps + 1 == max_episode_steps:
             print("Oops! Max steps reached")
-            done = True
-            # time_reward += -100
-        #---------------------------------------------------------------------------
+            # done = True
+            time_reward += -100
 
-
-        # if self.car.x < 10:
-        #     self.car.x = 10
-        #     wall_reward += -1
-        # if self.car.y < 10:
-        #     self.car.y = 10
-        #     wall_reward += -1
-        # if self.car.x > 1420:
-        #     self.car.x = 1420
-        #     wall_reward += -1
-        # if self.car.y > 650:
-        #     self.car.y = 650
-        # wall_reward += -1
-
-        #---------------------------------------------------------------------------
-        # NEGATIVE TERMINAL - If we reach the wall then reset env, negative reward and set done = True
-        #---------------------------------------------------------------------------
         if (
             (self.car.x < 10)
             or (self.car.y < 10)
@@ -332,10 +275,9 @@ class Game(Widget):
             or (self.car.y > 650)
         ):
 
-            wall_reward += -1
-            done = True
+            wall_reward += -100
+            # done = True
             print("Oops! Hit the boundary")
-        #---------------------------------------------------------------------------
 
         # # rotate reward
         # if abs(self.car.angle) > 500:
@@ -343,9 +285,10 @@ class Game(Widget):
         #     angle_reward += -10 * abs(self.car.angle) / 360
         # if abs(self.car.angle) > 360 * 4:
         #     done = True
-        #     angle_reward += -1
+        #     angle_reward += -100
         #     print("Oh damn Ghoomar effect!")
 
+        # distance rewards
 
         # if distance < last_distance:
         #     distance_reward += 0.1
@@ -356,29 +299,18 @@ class Game(Widget):
         # # else:
         # #     distance_reward += -0.2
 
-        #---------------------------------------------------------------------------
-        # Distance reward - a continuous function which increases with decrease in distance
-        #---------------------------------------------------------------------------
-        distance_reward = 1 - ((distance / max_distance)** 0.4)
-        # multiply by pixel density
-        distance_reward  = distance_reward * road_factor
+        distance_reward = 1 - ((distance / 1429 * 2) ** 0.4)
 
-        #---------------------------------------------------------------------------
-        # Velocity reward
-        #---------------------------------------------------------------------------
-        # # velocity normalised
+        # velocity normalised
+        # print(self.car.pred_velocity)
         velocity = (self.car.pred_velocity - min_action[1]) / (
             max_action[1] - min_action[1]
         )
-        velocity_reward = velocity * (road_factor**0.4)
-        #---------------------------------------------------------------------------
 
+        # Reward for reaching destination
 
-        #---------------------------------------------------------------------------
-        # POSITIVE TERMINAL - Reward for reaching destination
-        #---------------------------------------------------------------------------
-        if distance < 25:
-            goal_reward = 10
+        if distance < 20:
+            goal_reward = 300
             done = True
             print("Hurray! Reached the goal")
             if dest == "B":
@@ -391,11 +323,8 @@ class Game(Widget):
                 dest = "B"
         last_distance = distance
 
-        #---------------------------------------------------------------------------
-        # Total reward calculation
-        #---------------------------------------------------------------------------
         total_reward = (
-            (distance_reward + velocity_reward)/2
+            (distance_reward * road_factor)
             # + (velocity * road_factor)
             + goal_reward
             + wall_reward
@@ -403,12 +332,17 @@ class Game(Widget):
             + living_penalty
         )
 
+        # total_reward = (
+        #     living_penalty
+        #     + sand_reward
+        #     + wall_reward
+        #     + distance_reward
+        #     + angle_reward
+        #     + time_reward
+        # )
         return total_reward, done
 
     def update(self, dt):
-        """
-        main function that is called by kivy
-        """
 
         global brain
         global last_reward
@@ -421,100 +355,45 @@ class Game(Widget):
         global swap
         global total_timesteps, done, episode_num, timesteps_since_eval, episode_reward, episode_timesteps, max_episode_steps, road_factor
 
-        longueur = self.width
-        largeur = self.height
-        if first_update:
-            init()
+        # longueur = self.width
+        # largeur = self.height
+        # if first_update:
+        #     init()
 
-        state = self.get_state()
+        if start_timesteps < max_timesteps:
 
-        # We start the main loop over 500,000 timesteps
-        if total_timesteps < max_timesteps:
+            state = self.get_state()
 
-            if done:
-                # If we are not at the very beginning, we start the training process of the model
-                if total_timesteps != 0:
-                    print(
-                        "Total Timesteps: {} Episode Num: {} Episode Steps: {} Reward: {}".format(
-                            total_timesteps,
-                            episode_num,
-                            episode_timesteps,
-                            episode_reward,
-                        )
-                    )
-                    policy.train(
-                        replay_buffer,
-                        100,  # episode_timesteps,
-                        batch_size,
-                        discount,
-                        tau,
-                        policy_noise,
-                        noise_clip,
-                        policy_freq,
-                    )
-
-                # When the training step is done, we reset the state of the environment
-                self.reset()
-
-                # Set the Done to False
-                done = False
-
-                # Set rewards and episode timesteps to zero
-                episode_reward = 0
-                episode_timesteps = 0
-                episode_num += 1
-
-            # Before 10000 timesteps, we play random actions
-            if total_timesteps < start_timesteps:
-                action = self.random_action()
-                # print(f"action = {action}")
-            else:  # After 10000 timesteps, we switch to the model
-                action = policy.select_action(state)
-                # If the explore_noise parameter is not 0, we add noise to the action and we clip it
-                if expl_noise != 0:
-                    action = (
-                        action + np.random.normal(0, expl_noise, size=len(max_action))
-                    ).clip(np.array(min_action), np.array(max_action))
-                    action = Action(*action)
+            action = policy.select_action(state)
 
             # The agent performs the action in the environment, then reaches the next state and receives the reward
             new_state, reward, done = self.step(action)
 
-            # We store the new transition into the Experience Replay memory (ReplayBuffer)
-            replay_buffer.add((state, new_state, action, reward, done))
+            if done:
+                # self.reset()
+                done = False
 
-            # We increase the total reward
-            episode_reward += reward
+            print(
+                round(state.distance * 1429, 2),
+                ",",
+                # state[1],
+                round(state.pos_orientation, 2),
+                "|",
+                round(action[0], 2),
+                ",",
+                round(action[1], 2),
+                "|",
+                round(reward, 2),
+                "|",
+                dest,
+                ",",
+                "Road" if road_factor > 0.1 else "Sand",
+                round(self.car.angle, 2),
+                "|",
+                (round(self.car.x, 2), round(self.car.y, 2)),
+            )
 
-            # print every 10th timestep
-            if total_timesteps % 10 == 0 or done:
-                print(
-                    total_timesteps,
-                    "|",
-                    round(state.distance * 1429, 2),
-                    ",",
-                    # state[1],
-                    round(state.pos_orientation, 2),
-                    "|",
-                    round(action.rotation, 2),
-                    ",",
-                    round(action.velocity, 2),
-                    "|",
-                    round(reward, 2),
-                    "|",
-                    dest,
-                    ",",
-                    "Road" if road_factor > 0.1 else "Sand",
-                    round(self.car.angle, 2),
-                    "|",
-                    (round(self.car.x, 2), round(self.car.y, 2)),
-                )
-
-            # We update the state, the episode timestep, the total timesteps, and the timesteps since the evaluation of the policy
-            state = new_state
-            episode_timesteps += 1
             total_timesteps += 1
-            timesteps_since_eval += 1
 
 
 # Adding the API Buttons (clear, save and load)
